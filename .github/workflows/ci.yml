@@ -68,13 +68,13 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose up -d --build
+          docker compose up -d --build
           sleep 30
 
       - name: Check all containers running
         run: |
-          docker-compose ps
-          docker-compose ps | grep -q "Up" || exit 1
+          docker compose ps
+          docker compose ps | grep -q "Up" || exit 1
 
       - name: Test Gateway health
         run: |
@@ -108,8 +108,8 @@ jobs:
 
       - name: Dump logs on failure
         if: failure()
-        run: docker-compose logs
+        run: docker compose logs
 
       - name: Tear down
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v
