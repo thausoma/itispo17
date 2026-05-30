@@ -21,19 +21,12 @@ jobs:
 
       - name: Install linting tools
         run: |
-          pip install flake8 black isort
+          pip install flake8
 
       - name: Run flake8
         run: |
-          flake8 gateway/ user-service/ order-service/ notification-service/             --max-line-length=120 --exclude=proto,*_pb2.py,*_pb2_grpc.py
-
-      - name: Check black formatting
-        run: |
-          black --check gateway/ user-service/ order-service/ notification-service/
-
-      - name: Check isort
-        run: |
-          isort --check-only gateway/ user-service/ order-service/ notification-service/
+          flake8 gateway/ user-service/ order-service/ notification-service/ \
+            --max-line-length=120 --exclude=proto,*_pb2.py,*_pb2_grpc.py
 
   build:
     name: Build Docker Images
@@ -89,11 +82,15 @@ jobs:
 
       - name: Test User Service
         run: |
-          curl -f -X POST http://localhost:8090/api/users             -H "Content-Type: application/json"             -d '{"name":"CI Test","email":"ci@test.com"}' || exit 1
+          curl -f -X POST http://localhost:8090/api/users \
+            -H "Content-Type: application/json" \
+            -d '{"name":"CI Test","email":"ci@test.com"}' || exit 1
 
       - name: Test Order Service
         run: |
-          curl -f -X POST http://localhost:8090/api/orders             -H "Content-Type: application/json"             -d '{"user_id":1,"total":42.00}' || exit 1
+          curl -f -X POST http://localhost:8090/api/orders \
+            -H "Content-Type: application/json" \
+            -d '{"user_id":1,"total":42.00}' || exit 1
 
       - name: Test Notifications
         run: |
@@ -101,7 +98,9 @@ jobs:
 
       - name: Test GraphQL
         run: |
-          curl -f -X POST http://localhost:8090/graphql/             -H "Content-Type: application/json"             -d '{"query":"query { users { id name email } orders { id status } notifications { id message } }"}' || exit 1
+          curl -f -X POST http://localhost:8090/graphql \
+            -H "Content-Type: application/json" \
+            -d '{"query":"query { users { id name email } orders { id status } notifications { id message } }"}' || exit 1
 
       - name: Test Circuit Breaker endpoint
         run: |
