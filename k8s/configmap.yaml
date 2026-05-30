@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: notifications-s19
+data:
+  USER_SERVICE_URL: "http://user-service:8001"
+  ORDER_SERVICE_URL: "http://order-service:8002"
+  NOTIFICATION_SERVICE_URL: "http://notification-service:8131"
+  NOTIFICATION_GRPC_HOST: "notification-service"
+  NOTIFICATION_GRPC_PORT: "50051"
+  RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+  GRPC_PORT: "50051"

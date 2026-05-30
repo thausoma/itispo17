@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: notifications-s19
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      initContainers:
+        - name: wait-for-user-service
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z user-service 8001; do echo waiting for user-service; sleep 2; done;']
+        - name: wait-for-order-service
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z order-service 8002; do echo waiting for order-service; sleep 2; done;']
+        - name: wait-for-notification-service
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z notification-service 8131; do echo waiting for notification-service; sleep 2; done;']
+      containers:
+        - name: gateway
+          image: week-17-gateway:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: app-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: notifications-s19
+spec:
+  selector:
+    app: gateway
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30090
+  type: NodePort
