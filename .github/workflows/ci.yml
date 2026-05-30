@@ -98,7 +98,7 @@ jobs:
 
       - name: Test GraphQL
         run: |
-          curl -f -X POST http://localhost:8090/graphql \
+          curl -f -X POST http://localhost:8090/graphql/ \
             -H "Content-Type: application/json" \
             -d '{"query":"query { users { id name email } orders { id status } notifications { id message } }"}' || exit 1
 
