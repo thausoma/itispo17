@@ -13,7 +13,6 @@ import aio_pika
 import notifications_pb2
 import notifications_pb2_grpc
 
-
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost:5433/orderdb")
 NOTIFICATION_HOST = os.getenv("NOTIFICATION_GRPC_HOST", "localhost")
 NOTIFICATION_PORT = os.getenv("NOTIFICATION_GRPC_PORT", "50051")
@@ -192,11 +191,13 @@ async def process_retry(order_id: int):
             return
 
         try:
-            success = await cb.call(send_notification_grpc(
-                user_id=db_order.user_id,
-                message=f"Your order #{order_id} has been received.",
-                channel="push",
-            ))
+            success = await cb.call(
+                send_notification_grpc(
+                    user_id=db_order.user_id,
+                    message=f"Your order #{order_id} has been received.",
+                    channel="push",
+                )
+            )
         except Exception as exc:
             print(f"[Retry] CB blocked: {exc}")
             success = False
@@ -251,11 +252,13 @@ async def process_notification_initial(order_id: int, user_id: int):
             return
 
         try:
-            success = await cb.call(send_notification_grpc(
-                user_id=user_id,
-                message=f"Your order #{order_id} has been received.",
-                channel="push",
-            ))
+            success = await cb.call(
+                send_notification_grpc(
+                    user_id=user_id,
+                    message=f"Your order #{order_id} has been received.",
+                    channel="push",
+                )
+            )
         except Exception as exc:
             print(f"[Initial] CB blocked or error: {exc}")
             success = False

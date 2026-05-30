@@ -15,7 +15,6 @@ import uvicorn
 import notifications_pb2
 import notifications_pb2_grpc
 
-
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost:5434/notificationdb")
 GRPC_PORT = int(os.getenv("GRPC_PORT", "50051"))
 
@@ -84,10 +83,7 @@ class NotificationsServicer(notifications_pb2_grpc.NotificationsServiceServicer)
             session.add(db_notif)
             await session.commit()
             await session.refresh(db_notif)
-            return notifications_pb2.SendNotificationResponse(
-                success=True,
-                notification_id=str(db_notif.id)
-            )
+            return notifications_pb2.SendNotificationResponse(success=True, notification_id=str(db_notif.id))
 
 
 @asynccontextmanager

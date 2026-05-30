@@ -6,7 +6,6 @@ from ariadne.asgi import GraphQL
 from starlette.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
-
 app = FastAPI(title="API Gateway", redirect_slashes=False)
 
 app.add_middleware(
@@ -40,7 +39,7 @@ async def proxy_request(method: str, base_url: str, prefix: str, path: str, requ
     return JSONResponse(
         content=resp.json() if resp.text else None,
         status_code=resp.status_code,
-        headers={k: v for k, v in resp.headers.items() if k.lower() not in ("content-length", "transfer-encoding")}
+        headers={k: v for k, v in resp.headers.items() if k.lower() not in ("content-length", "transfer-encoding")},
     )
 
 
@@ -136,4 +135,5 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8080)
