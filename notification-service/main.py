@@ -15,12 +15,14 @@ import uvicorn
 import notifications_pb2
 import notifications_pb2_grpc
 
+
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost:5434/notificationdb")
 GRPC_PORT = int(os.getenv("GRPC_PORT", "50051"))
 
 engine = create_async_engine(DATABASE_URL, echo=True, pool_pre_ping=True)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
+
 
 class Notification(Base):
     __tablename__ = "notifications"
@@ -30,10 +32,12 @@ class Notification(Base):
     channel = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class NotificationCreate(BaseModel):
     user_id: int
     message: str
     channel: str
+
 
 class NotificationOut(BaseModel):
     id: int
@@ -43,7 +47,9 @@ class NotificationOut(BaseModel):
     created_at: datetime
     model_config = {"from_attributes": True}
 
+
 _loop: asyncio.AbstractEventLoop | None = None
+
 
 def serve_grpc():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -52,6 +58,7 @@ def serve_grpc():
     server.start()
     print(f"gRPC server started on port {GRPC_PORT}")
     server.wait_for_termination()
+
 
 class NotificationsServicer(notifications_pb2_grpc.NotificationsServiceServicer):
     def SendNotification(self, request, context):
@@ -62,9 +69,9 @@ class NotificationsServicer(notifications_pb2_grpc.NotificationsServiceServicer)
         future = asyncio.run_coroutine_threadsafe(self._save(request), _loop)
         try:
             return future.result(timeout=10)
-        except Exception as e:
+        except Exception as exc:
             context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(e))
+            context.set_details(str(exc))
             return notifications_pb2.SendNotificationResponse(success=False, notification_id="")
 
     async def _save(self, request):
@@ -82,6 +89,7 @@ class NotificationsServicer(notifications_pb2_grpc.NotificationsServiceServicer)
                 notification_id=str(db_notif.id)
             )
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _loop
@@ -92,13 +100,16 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     yield
 
+
 app = FastAPI(title="Notification Service", lifespan=lifespan)
+
 
 @app.get("/notifications", response_model=list[NotificationOut])
 async def list_notifications():
     async with async_session() as session:
         result = await session.execute(select(Notification))
         return result.scalars().all()
+
 
 @app.post("/notifications", response_model=NotificationOut, status_code=201)
 async def create_notification(notification: NotificationCreate):
@@ -113,9 +124,11 @@ async def create_notification(notification: NotificationCreate):
         await session.refresh(db_notif)
         return db_notif
 
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8131)

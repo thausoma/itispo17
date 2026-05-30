@@ -6,6 +6,7 @@ from ariadne.asgi import GraphQL
 from starlette.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
+
 app = FastAPI(title="API Gateway", redirect_slashes=False)
 
 app.add_middleware(
@@ -21,8 +22,8 @@ NOTIFICATION_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://localhost:8131"
 
 http_client = httpx.AsyncClient(timeout=10.0)
 
-async def proxy_request(method: str, base_url: str, prefix: str, path: str, request: Request):
 
+async def proxy_request(method: str, base_url: str, prefix: str, path: str, request: Request):
     if path:
         url = f"{base_url}/{prefix}/{path}"
     else:
@@ -42,11 +43,13 @@ async def proxy_request(method: str, base_url: str, prefix: str, path: str, requ
         headers={k: v for k, v in resp.headers.items() if k.lower() not in ("content-length", "transfer-encoding")}
     )
 
+
 @app.api_route("/api/users", methods=["GET", "POST", "PUT", "DELETE"])
 @app.api_route("/api/users/", methods=["GET", "POST", "PUT", "DELETE"])
 @app.api_route("/api/users/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_users(request: Request, path: str = ""):
     return await proxy_request(request.method, USER_URL, "users", path, request)
+
 
 @app.api_route("/api/orders", methods=["GET", "POST", "PUT", "DELETE"])
 @app.api_route("/api/orders/", methods=["GET", "POST", "PUT", "DELETE"])
@@ -54,11 +57,13 @@ async def proxy_users(request: Request, path: str = ""):
 async def proxy_orders(request: Request, path: str = ""):
     return await proxy_request(request.method, ORDER_URL, "orders", path, request)
 
+
 @app.api_route("/api/notifications", methods=["GET", "POST", "PUT", "DELETE"])
 @app.api_route("/api/notifications/", methods=["GET", "POST", "PUT", "DELETE"])
 @app.api_route("/api/notifications/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_notifications(request: Request, path: str = ""):
     return await proxy_request(request.method, NOTIFICATION_URL, "notifications", path, request)
+
 
 type_defs = """
     type User {
@@ -92,20 +97,24 @@ type_defs = """
 query = QueryType()
 mutation = MutationType()
 
+
 @query.field("users")
 async def resolve_users(*_):
     r = await http_client.get(f"{USER_URL}/users")
     return r.json()
+
 
 @query.field("orders")
 async def resolve_orders(*_):
     r = await http_client.get(f"{ORDER_URL}/orders")
     return r.json()
 
+
 @query.field("notifications")
 async def resolve_notifications(*_):
     r = await http_client.get(f"{NOTIFICATION_URL}/notifications")
     return r.json()
+
 
 @mutation.field("createNotification")
 async def resolve_create_notification(*_, user_id, message, channel):
@@ -115,12 +124,15 @@ async def resolve_create_notification(*_, user_id, message, channel):
     )
     return r.json()
 
+
 schema = make_executable_schema(type_defs, query, mutation)
 app.mount("/graphql", GraphQL(schema, debug=True))
+
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 if __name__ == "__main__":
     import uvicorn

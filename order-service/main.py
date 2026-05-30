@@ -9,10 +9,10 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, String, Float, select
 import grpc
 import aio_pika
-from datetime import datetime
 
 import notifications_pb2
 import notifications_pb2_grpc
+
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost:5433/orderdb")
 NOTIFICATION_HOST = os.getenv("NOTIFICATION_GRPC_HOST", "localhost")
@@ -20,14 +20,17 @@ NOTIFICATION_PORT = os.getenv("NOTIFICATION_GRPC_PORT", "50051")
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 MAX_RETRIES = 3
 
+
 # ─── Circuit Breaker ───
 class CBState(Enum):
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
 
+
 class CircuitBreaker:
     """Simple in-memory circuit breaker for gRPC calls to Notification Service."""
+
     def __init__(self, failure_threshold=5, recovery_timeout=30.0, half_open_max_calls=2):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -64,7 +67,7 @@ class CircuitBreaker:
                 elif self.state == CBState.CLOSED:
                     self.failure_count = 0
             return result
-        except Exception as e:
+        except Exception:
             async with self._lock:
                 self.failure_count += 1
                 self.last_failure_time = time.time()
@@ -76,11 +79,13 @@ class CircuitBreaker:
                     print(f"[CB] Transition CLOSED → OPEN (failures={self.failure_count})")
             raise
 
+
 cb = CircuitBreaker(failure_threshold=3, recovery_timeout=15.0)
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
+
 
 class Order(Base):
     __tablename__ = "orders"
@@ -90,9 +95,11 @@ class Order(Base):
     status = Column(String, default="PENDING")
     retry_count = Column(Integer, default=0)
 
+
 class OrderCreate(BaseModel):
     user_id: int
     total: float
+
 
 class OrderOut(BaseModel):
     id: int
@@ -102,13 +109,16 @@ class OrderOut(BaseModel):
     notification_status: str | None = None
     model_config = {"from_attributes": True}
 
+
 app = FastAPI(title="Order Service")
+
 
 @app.on_event("startup")
 async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     asyncio.create_task(retry_consumer())
+
 
 async def send_notification_grpc(user_id: int, message: str, channel: str):
     try:
@@ -123,16 +133,17 @@ async def send_notification_grpc(user_id: int, message: str, channel: str):
             timeout=5,
         )
         return response.success
-    except Exception as e:
-        print(f"[gRPC error] {e}")
+    except Exception as exc:
+        print(f"[gRPC error] {exc}")
         return False
+
 
 async def publish_retry(order_id: int):
     try:
         connection = await aio_pika.connect_robust(RABBITMQ_URL)
         async with connection:
             ch = await connection.channel()
-            queue = await ch.declare_queue("order_retry", durable=True)
+            await ch.declare_queue("order_retry", durable=True)
             await ch.default_exchange.publish(
                 aio_pika.Message(
                     body=str(order_id).encode(),
@@ -141,8 +152,9 @@ async def publish_retry(order_id: int):
                 routing_key="order_retry",
             )
         print(f"[RabbitMQ] Published retry for order {order_id}")
-    except Exception as e:
-        print(f"[RabbitMQ publish error] {e}")
+    except Exception as exc:
+        print(f"[RabbitMQ publish error] {exc}")
+
 
 async def retry_consumer():
     while True:
@@ -158,9 +170,10 @@ async def retry_consumer():
                             order_id = int(message.body.decode())
                             print(f"[Retry Consumer] Processing order {order_id}")
                             await process_retry(order_id)
-        except Exception as e:
-            print(f"[Retry Consumer] Error: {e}, reconnecting in 5s...")
+        except Exception as exc:
+            print(f"[Retry Consumer] Error: {exc}, reconnecting in 5s...")
             await asyncio.sleep(5)
+
 
 async def process_retry(order_id: int):
     async with async_session() as session:
@@ -184,8 +197,8 @@ async def process_retry(order_id: int):
                 message=f"Your order #{order_id} has been received.",
                 channel="push",
             ))
-        except Exception as e:
-            print(f"[Retry] CB blocked: {e}")
+        except Exception as exc:
+            print(f"[Retry] CB blocked: {exc}")
             success = False
 
         db_order.retry_count += 1
@@ -201,12 +214,13 @@ async def process_retry(order_id: int):
                 print(f"[Retry] Order {order_id} re-queued for attempt #{db_order.retry_count + 1}")
         await session.commit()
 
+
 async def publish_retry_delayed(order_id: int):
     try:
         connection = await aio_pika.connect_robust(RABBITMQ_URL)
         async with connection:
             ch = await connection.channel()
-            queue = await ch.declare_queue("order_retry", durable=True)
+            await ch.declare_queue("order_retry", durable=True)
             await ch.default_exchange.publish(
                 aio_pika.Message(
                     body=str(order_id).encode(),
@@ -214,8 +228,9 @@ async def publish_retry_delayed(order_id: int):
                 ),
                 routing_key="order_retry",
             )
-    except Exception as e:
-        print(f"[RabbitMQ re-publish error] {e}")
+    except Exception as exc:
+        print(f"[RabbitMQ re-publish error] {exc}")
+
 
 @app.post("/orders", response_model=OrderOut, status_code=201)
 async def create_order(order: OrderCreate, background_tasks: BackgroundTasks):
@@ -226,6 +241,7 @@ async def create_order(order: OrderCreate, background_tasks: BackgroundTasks):
         await session.refresh(db_order)
         background_tasks.add_task(process_notification_initial, db_order.id, db_order.user_id)
         return db_order
+
 
 async def process_notification_initial(order_id: int, user_id: int):
     async with async_session() as session:
@@ -240,8 +256,8 @@ async def process_notification_initial(order_id: int, user_id: int):
                 message=f"Your order #{order_id} has been received.",
                 channel="push",
             ))
-        except Exception as e:
-            print(f"[Initial] CB blocked or error: {e}")
+        except Exception as exc:
+            print(f"[Initial] CB blocked or error: {exc}")
             success = False
 
         if success:
@@ -252,6 +268,7 @@ async def process_notification_initial(order_id: int, user_id: int):
             db_order.status = "NOTIFICATION_FAILED"
             print(f"[Initial] Order {order_id} failed, queued for retry")
         await session.commit()
+
 
 @app.get("/orders", response_model=list[OrderOut])
 async def list_orders():
@@ -271,6 +288,7 @@ async def list_orders():
                 item.notification_status = "notification permanently failed — manual intervention required"
             out.append(item)
         return out
+
 
 @app.get("/health")
 async def health():
